@@ -1,0 +1,82 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Parameters": {
+        "StreamBucketARN": {
+            "Type": "String",
+            "Default": "olien-stream2",
+            "Description": "Destination S3 Bucket for firehose"
+        }
+    },
+    "Resources" : {
+        "S3DeliveryStream": {
+          "Type": "AWS::KinesisFirehose::DeliveryStream",
+          "Properties": {
+            "S3DestinationConfiguration" : {
+                "BucketARN": { "Ref" : "StreamBucketARN" },
+                "BufferingHints": {
+                    "IntervalInSeconds": "60",
+                     "SizeInMBs": "50"
+                },
+                "CompressionFormat": "UNCOMPRESSED",
+                "Prefix": "firehose/",
+                "RoleARN": { "Fn::GetAtt" : ["CFNRole", "Arn"] },
+                "CloudWatchLoggingOptions" : {
+                  "Enabled" : true,
+                  "LogGroupName" : "deliverystream",
+                  "LogStreamName" : "s3Backup"
+                }
+              }
+            }              
+        },
+        "CFNRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+             "AssumeRolePolicyDocument": {
+                "Statement": [
+                    {
+                        "Action": [
+                           "sts:AssumeRole"
+                        ],
+                        "Effect": "Allow",
+                        "Principal": {
+                           "Service": [
+                              "cloudformation.amazonaws.com"
+                           ]
+                        }
+                    },
+                    {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": "firehose.amazonaws.com"
+                        },
+                        "Action": "sts:AssumeRole",
+                        "Condition": {
+                            "StringEquals": {
+                                "sts:ExternalId":"138831098359"
+                            }
+                        }
+                    }
+                 ]
+             },
+             "Path": "/",
+             "Policies": [
+                {      
+                    "Effect": "Allow",      
+                    "Action": [        
+                        "s3:AbortMultipartUpload",        
+                        "s3:GetBucketLocation",        
+                        "s3:GetObject",        
+                        "s3:ListBucket",        
+                        "s3:ListBucketMultipartUploads",        
+                        "s3:PutObject"
+                    ],      
+                    "Resource": [
+                        "arn:aws:s3:::olien-stream2",
+                        "arn:aws:s3:::olien-stream2/*"        
+                    ]
+                }
+             ]
+          }
+       }
+    }
+}
