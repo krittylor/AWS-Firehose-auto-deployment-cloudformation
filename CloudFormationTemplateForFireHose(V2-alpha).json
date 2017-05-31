@@ -18,7 +18,7 @@
                         "SizeInMBs": "50"
                     },
                     "CompressionFormat": "UNCOMPRESSED",
-                    "Prefix": "firehose/",
+                    "Prefix": "",
                     "RoleARN": { "Fn::GetAtt" : ["FirehoseLambdaCloudwatchRole", "Arn"] }
                 }
             }
@@ -37,7 +37,12 @@
                                 "var firehose = new AWS.Firehose();",
                                 "exports.handler = function(event, context) {",
                                 "   var params = {",
-                                "       DeliveryStreamName: 'test',",
+                                "       DeliveryStreamName: " ,
+                                {"Fn::Join": ["", [
+                                    "'",
+                                    {"Ref" : "S3DeliveryStream"},
+                                    "',"
+                                ]]},
                                 "       Record: {",
                                 "           Data: JSON.stringify({",
                                 "               index: 'created_by_cloudformation_template',",
@@ -105,7 +110,9 @@
                                 ],
                                 "Resource": [
                                     "arn:aws:s3:::olien-stream2",
-                                    "arn:aws:s3:::olien-stream2/*"
+                                    "arn:aws:s3:::olien-stream2/*",
+                                    "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%",
+                                    "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%/*"
                                 ]
                             }
                         }
@@ -160,6 +167,25 @@
                                     ],
                                     "Effect": "Allow",
                                     "Resource": "*"
+                                },
+                                {
+                                    "Sid": "",
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "lambda:InvokeFunction",
+                                        "lambda:GetFunctionConfiguration"
+                                    ],
+                                    "Resource": "arn:aws:lambda:us-west-2:138831098359:function:%FIREHOSE_DEFAULT_FUNCTION%:%FIREHOSE_DEFAULT_VERSION%"
+                                },
+                                {
+                                    "Sid": "",
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "logs:PutLogEvents"
+                                    ],
+                                    "Resource": [
+                                        "arn:aws:logs:us-west-2:138831098359:log-group:/aws/kinesisfirehose/test:log-stream:*"
+                                    ]
                                 }
                             ]
                         }
