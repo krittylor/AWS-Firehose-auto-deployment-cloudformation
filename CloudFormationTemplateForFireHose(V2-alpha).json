@@ -33,8 +33,25 @@
                         "Fn::Join": [
                             "\n",
                             [
+                                "var AWS = require('aws-sdk');",
+                                "var firehose = new AWS.Firehose();",
                                 "exports.handler = function(event, context) {",
-                                "  console.log('hello world!');",
+                                "   var params = {",
+                                "       DeliveryStreamName: 'test',",
+                                "       Record: {",
+                                "           Data: JSON.stringify({",
+                                "               index: 'created_by_cloudformation_template',",
+                                "               data: new Date().toISOString()",
+                                "           })",
+                                "       }",
+                                "   };",
+                                "   firehose.putRecord(params, function(err, data) {",
+                                "       if (err)",
+                                "          console.log(err, err.stack); // an error occurred",
+                                "       else",
+                                "          console.log(data);           // successful response",
+                                "       context.done();",
+                                "   });",
                                 "};"
                             ]
                         ]
