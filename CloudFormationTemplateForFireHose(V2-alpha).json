@@ -1,25 +1,74 @@
 {
     "AWSTemplateFormatVersion": "2010-09-09",
     "Parameters": {
-        "StreamBucketARN": {
+        "StreamBucketName": {
             "Type": "String",
-            "Default": "arn:aws:s3:::olien-stream2",
+            "Default": "test-bucket-olien",
             "Description": "Destination S3 Bucket for firehose"
         }
     },
-    "Resources" : {
+    "Resources": {
+        "LambdaInvokePermission": {
+            "Type": "AWS::Lambda::Permission",
+            "Properties": {
+                "FunctionName": {
+                    "Fn::GetAtt": [
+                        "FirehoseLambda",
+                        "Arn"
+                    ]
+                },
+                "Action": "lambda:*",
+                "Principal": "*",
+                "SourceAccount": {
+                    "Ref": "AWS::AccountId"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "f7254bc7-6b2f-41a1-b2e1-3a8fd05c98f6"
+                }
+            }
+        },
         "S3DeliveryStream": {
             "Type": "AWS::KinesisFirehose::DeliveryStream",
             "Properties": {
-                "S3DestinationConfiguration" : {
-                    "BucketARN": { "Ref" : "StreamBucketARN" },
+                "S3DestinationConfiguration": {
+                    "BucketARN": {
+                        "Fn::GetAtt": [
+                            "S3BucketForFirehose",
+                            "Arn"
+                        ]
+                    },
                     "BufferingHints": {
                         "IntervalInSeconds": "60",
                         "SizeInMBs": "50"
                     },
                     "CompressionFormat": "UNCOMPRESSED",
                     "Prefix": "",
-                    "RoleARN": { "Fn::GetAtt" : ["FirehoseLambdaCloudwatchRole", "Arn"] }
+                    "RoleARN": {
+                        "Fn::GetAtt": [
+                            "FirehoseLambdaCloudwatchRole",
+                            "Arn"
+                        ]
+                    }
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "5818184e-ac3e-45e6-b1f8-b307f3932648"
+                }
+            }
+        },
+        "S3BucketForFirehose": {
+            "Type": "AWS::S3::Bucket",
+            "Properties": {
+                "BucketName": {
+                    "Ref": "StreamBucketName"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "f7ca6f2c-0785-4e68-afd9-c57e9d591a15"
                 }
             }
         },
@@ -27,7 +76,12 @@
             "Type": "AWS::Lambda::Function",
             "Properties": {
                 "Handler": "index.handler",
-                "Role": { "Fn::GetAtt" : ["FirehoseLambdaCloudwatchRole", "Arn"] },
+                "Role": {
+                    "Fn::GetAtt": [
+                        "FirehoseLambdaCloudwatchRole",
+                        "Arn"
+                    ]
+                },
                 "Code": {
                     "ZipFile": {
                         "Fn::Join": [
@@ -37,12 +91,19 @@
                                 "var firehose = new AWS.Firehose();",
                                 "exports.handler = function(event, context) {",
                                 "   var params = {",
-                                "       DeliveryStreamName: " ,
-                                {"Fn::Join": ["", [
-                                    "'",
-                                    {"Ref" : "S3DeliveryStream"},
-                                    "',"
-                                ]]},
+                                "       DeliveryStreamName: ",
+                                {
+                                    "Fn::Join": [
+                                        "",
+                                        [
+                                            "'",
+                                            {
+                                                "Ref": "S3DeliveryStream"
+                                            },
+                                            "',"
+                                        ]
+                                    ]
+                                },
                                 "       Record: {",
                                 "           Data: JSON.stringify({",
                                 "               index: 'created_by_cloudformation_template',",
@@ -63,6 +124,59 @@
                     }
                 },
                 "Runtime": "nodejs4.3"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "ece93d7f-01cc-49fe-a5e2-2b7d6be7e65d"
+                }
+            }
+        },
+        "FirehoseTestLogLambda": {
+            "Type": "AWS::Lambda::Function",
+            "Properties": {
+                "Handler": "index.handler",
+                "FunctionName": "FirehoseTestLogLambda",
+                "Role": {
+                    "Fn::GetAtt": [
+                        "FirehoseLambdaCloudwatchRole",
+                        "Arn"
+                    ]
+                },
+                "Code": {
+                    "ZipFile": {
+                        "Fn::Join": [
+                            "\n",
+                            [
+                                "def handler(event, context):",
+                                "   return 'Hello from Lambda'"
+                            ]
+                        ]
+                    }
+                },
+                "Runtime": "python2.7"
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "696d3344-e856-4123-b4b9-c3c0925092f3"
+                }
+            }
+        },
+        "DestinationWithName": {
+            "Type": "AWS::Logs::SubscriptionFilter",
+            "Properties": {
+                "DestinationArn": {
+                    "Fn::GetAtt": [
+                        "FirehoseLambda",
+                        "Arn"
+                    ]
+                },
+                "LogGroupName": "/aws/lambda/FirehoseTestLogLambda",
+                "FilterPattern": ""
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "ea7d76f6-1e57-4671-9120-2b322750564c"
+                }
             }
         },
         "FirehoseLambdaCloudwatchRole": {
@@ -76,17 +190,26 @@
                             "Principal": {
                                 "Service": "firehose.amazonaws.com"
                             },
-                            "Action": "sts:AssumeRole",
-                            "Condition": {
-                                "StringEquals": {
-                                    "sts:ExternalId":"138831098359"
-                                }
-                            }
+                            "Action": "sts:AssumeRole"
                         },
                         {
                             "Effect": "Allow",
                             "Principal": {
                                 "Service": "lambda.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "s3.amazonaws.com"
+                            },
+                            "Action": "sts:AssumeRole"
+                        },
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": "events.amazonaws.com"
                             },
                             "Action": "sts:AssumeRole"
                         }
@@ -109,8 +232,29 @@
                                     "s3:PutObject"
                                 ],
                                 "Resource": [
-                                    "arn:aws:s3:::olien-stream2",
-                                    "arn:aws:s3:::olien-stream2/*",
+                                    {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "arn:aws:s3:::",
+                                                {
+                                                    "Ref": "StreamBucketName"
+                                                }
+                                            ]
+                                        ]
+                                    },
+                                    {
+                                        "Fn::Join": [
+                                            "",
+                                            [
+                                                "arn:aws:s3:::",
+                                                {
+                                                    "Ref": "StreamBucketName"
+                                                },
+                                                "/*"
+                                            ]
+                                        ]
+                                    },
                                     "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%",
                                     "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%/*"
                                 ]
@@ -128,7 +272,21 @@
                                     "lambda:GetFunctionConfiguration"
                                 ],
                                 "Resource": [
-                                    "arn:aws:lambda:us-west-2:138831098359:function:*"
+                                    {
+                                        "Fn::Join": [
+                                            ":",
+                                            [
+                                                "arn:aws:lambda",
+                                                {
+                                                    "Ref": "AWS::Region"
+                                                },
+                                                {
+                                                    "Ref": "AWS::AccountId"
+                                                },
+                                                "function:*"
+                                            ]
+                                        ]
+                                    }
                                 ]
                             }
                         }
@@ -140,18 +298,12 @@
                             "Statement": [
                                 {
                                     "Effect": "Allow",
-                                    "Action": "logs:CreateLogGroup",
-                                    "Resource": "arn:aws:logs:us-west-2:138831098359:*"
-                                },
-                                {
-                                    "Effect": "Allow",
                                     "Action": [
                                         "logs:CreateLogStream",
-                                        "logs:PutLogEvents"
+                                        "logs:PutLogEvents",
+                                        "logs:CreateLogGroup"
                                     ],
-                                    "Resource": [
-                                        "arn:aws:logs:us-west-2:138831098359:log-group:/aws/lambda/test:*"
-                                    ]
+                                    "Resource": "arn:aws:logs:*:*"
                                 }
                             ]
                         }
@@ -167,29 +319,146 @@
                                     ],
                                     "Effect": "Allow",
                                     "Resource": "*"
-                                },
-                                {
-                                    "Sid": "",
-                                    "Effect": "Allow",
-                                    "Action": [
-                                        "lambda:InvokeFunction",
-                                        "lambda:GetFunctionConfiguration"
-                                    ],
-                                    "Resource": "arn:aws:lambda:us-west-2:138831098359:function:%FIREHOSE_DEFAULT_FUNCTION%:%FIREHOSE_DEFAULT_VERSION%"
-                                },
-                                {
-                                    "Sid": "",
-                                    "Effect": "Allow",
-                                    "Action": [
-                                        "logs:PutLogEvents"
-                                    ],
-                                    "Resource": [
-                                        "arn:aws:logs:us-west-2:138831098359:log-group:/aws/kinesisfirehose/test:log-stream:*"
-                                    ]
                                 }
                             ]
                         }
                     }
+                ]
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Designer": {
+                    "id": "7eb2e1c9-ebdf-40c8-971e-d8e1480c77cf"
+                }
+            }
+        }
+    },
+    "Metadata": {
+        "AWS::CloudFormation::Designer": {
+            "7eb2e1c9-ebdf-40c8-971e-d8e1480c77cf": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 60,
+                    "y": 90
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "696d3344-e856-4123-b4b9-c3c0925092f3": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 180,
+                    "y": 90
+                },
+                "z": 1,
+                "embeds": [],
+                "isrelatedto": [
+                    "7eb2e1c9-ebdf-40c8-971e-d8e1480c77cf"
+                ]
+            },
+            "f7ca6f2c-0785-4e68-afd9-c57e9d591a15": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 60,
+                    "y": 210
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "5818184e-ac3e-45e6-b1f8-b307f3932648": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 180,
+                    "y": 210
+                },
+                "z": 1,
+                "embeds": [],
+                "isrelatedto": [
+                    "f7ca6f2c-0785-4e68-afd9-c57e9d591a15",
+                    "7eb2e1c9-ebdf-40c8-971e-d8e1480c77cf"
+                ]
+            },
+            "ece93d7f-01cc-49fe-a5e2-2b7d6be7e65d": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 300,
+                    "y": 90
+                },
+                "z": 1,
+                "embeds": [],
+                "isrelatedto": [
+                    "7eb2e1c9-ebdf-40c8-971e-d8e1480c77cf",
+                    "5818184e-ac3e-45e6-b1f8-b307f3932648"
+                ]
+            },
+            "21a43524-d882-4767-82fc-59aeff8904d8": {
+                "size": {
+                    "width": 150,
+                    "height": 150
+                },
+                "position": {
+                    "x": 270,
+                    "y": 180
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "ea7d76f6-1e57-4671-9120-2b322750564c": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 60,
+                    "y": 300
+                },
+                "z": 1,
+                "embeds": [],
+                "isrelatedto": [
+                    "ece93d7f-01cc-49fe-a5e2-2b7d6be7e65d",
+                    "7eb2e1c9-ebdf-40c8-971e-d8e1480c77cf",
+                    "94b67782-bf9c-46e6-9079-16ad39ea7465"
+                ]
+            },
+            "94b67782-bf9c-46e6-9079-16ad39ea7465": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 270,
+                    "y": 180
+                },
+                "z": 1,
+                "embeds": []
+            },
+            "f7254bc7-6b2f-41a1-b2e1-3a8fd05c98f6": {
+                "size": {
+                    "width": 60,
+                    "height": 60
+                },
+                "position": {
+                    "x": 270,
+                    "y": 180
+                },
+                "z": 1,
+                "embeds": [],
+                "isassociatedwith": [
+                    "ece93d7f-01cc-49fe-a5e2-2b7d6be7e65d"
                 ]
             }
         }
