@@ -136,6 +136,12 @@
                 "Runtime": "python2.7"
             }
         },
+        "FirehoseTestLog": {
+            "Type": "AWS::Logs::LogGroup",
+            "Properties": {
+                "LogGroupName": "/aws/lambda/FirehoseTestLogLambda"
+            }
+        },
         "DestinationWithName": {
             "Type": "AWS::Logs::SubscriptionFilter",
             "Properties": {
